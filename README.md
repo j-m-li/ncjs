@@ -1,2 +1,6 @@
 # ncjs
-NoCopyright JavaScript programming labuge
+NoCopyright JavaScript subset programming language
+
+```
+node ncjs.js hello.js
+```
