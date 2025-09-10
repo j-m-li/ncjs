@@ -7,7 +7,8 @@ function main()
 	c = 1 * 2;
 	c = div(1,2);
 	a = 1 % 2;
-	println(from_int(c));
+	print(from_int(c));
+	print(" == ");
 	println(from_int(a));
 	if (a === b) {
 	} else if (a !== b) {
@@ -16,7 +17,7 @@ function main()
 	while (a > 100 || (a < 10 && a <= 10 && a > 10 && a >= 10)) {
 		c = c + 1;
 	}
-	b = alloc(512);
+	b = alloc(512 + 6);
 //	read_block("hello.js", b, 0,0, cb);
 	read_block("test.js", b, 0,0, cb);
 	return 0;
@@ -28,35 +29,33 @@ function cb(url, err, bytesRead, buffer, offset, position)
 		println("Error");
 		return;
 	}
-	var i = "iééééééééééééééééééééééééééééé";
-	println(from_int(bytesRead));
-	println(offset);
+	var off = offset - offset % 512;
+	var br = bytesRead + off - offset;
+
 	if (bytesRead === 512) {
-/*
-		var n = 511;
-		buffer[offset - 1] = 0;
-		if (buffer[offset+n] >= 0xC0) {
-			buffer[offset+n-512] = buffer[offset+n];
-			n--;
-		} else if (buffer[offset+n] >= 0x80) {
-			buffer[offset+n-512] = buffer[offset+n];
-			n--;
-			while (n > 500 &&
-				buffer[offset+n] < 0xC0 && 
-				buffer[offset+n] >= 0x80) 
-			{
-				buffer[offset+n-512] = buffer[offset+n];
-				n--;
+		var n = 0;
+		while (n < 5) {
+			var c = buffer[offset + 511 - n];
+			if (c < 0x80) {
+				break;
 			}
-			buffer[offset+n-512] = buffer[offset+n];
-			n--;
+			if (c >= 0xC0) {
+				n = n + 1;
+				break;
+			}
+			n = n + 1;
 		}
-*/
-		println(to_string(bytesRead,buffer,offset));
+		print(to_string(br-n,buffer,off));
+		offset = off + n;
+		while (offset !== off) {
+			buffer[off] = buffer[off + 512 - n];
+			off = off + 1;
+		}
 		read_block(url, buffer, offset, position+1, cb);
 		return;
 	}
-	println(to_string(bytesRead,buffer,offset));
+	
+	println(to_string(br,buffer,off));
 	free(buffer);
 }
 
