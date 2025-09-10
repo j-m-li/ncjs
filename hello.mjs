@@ -1,5 +1,5 @@
 // Hello world
-function main() 
+function startup() 
 {
 	println("Hello World!");
 }

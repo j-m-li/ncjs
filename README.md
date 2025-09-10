@@ -2,5 +2,5 @@
 NoCopyright JavaScript subset programming language
 
 ```
-node ncjs.js hello.js
+node ncjs.js hello.mjs
 ```

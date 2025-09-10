@@ -1,4 +1,7 @@
 
 all:
-	node ncjs.js test.js
+	node ncjs.js test.mjs
+
+clean:
+	rm -f hello.txt
 
