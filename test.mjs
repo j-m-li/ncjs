@@ -1,26 +1,20 @@
 
-var std;
+function entry()
+{
+	include([['std','./std.mjs']]);
+}
 
 class my_cls {
 	a = 65;
 	b;
-	c;	
-}
-
-
-function startup()
-{
-	import('./std.mjs').then((m) => {std = m; setup(); /*loop();*/});
-}
-
-function loop()
-{
-	exit();
+	c;
+	dispose(){};	
 }
 
 function setup()
 {
 	var a, b, c;
+	std.hello();
 	c = 1 + 2;
 	c = 1 - 2;
 	c = 1 * 2;
@@ -36,49 +30,80 @@ function setup()
 	while (a > 100 || (a < 10 && a <= 10 && a > 10 && a >= 10)) {
 		c = c + 1;
 	}
-
 	c = new my_cls();
 	println(c.a);
-
-	b = alloc(512 + 6);
-//	read_block("hello.js", b, 0,0, cb);
-	read_block("test.mjs", b, 0,0, cb);
-
-	b = alloc(2048);
-	var len = to_binary("Hello world...",b,0,2048,0);
-	while (len < 1500) {
-		 len += to_binary("YO world...",b,len,2048,0);
-	}
-	write_block("hello.txt", b, 0, len, 0, cb_w);
+	c.dispose();
 }
 
-function cb_w(url, err, remains, buffer, offset, position)
+
+function loop()
 {
-	if (err) {
-		println("Error");
-		return;
+	var b;
+	if (evt.type === evt.START) {
+		b = alloc(512 + 6);
+		evt.state_machine = 1;
+		read_block("test.mjs", b, 0,0);
+	} else if (evt.type === evt.BLOCK_READ) {
+		if (evt.state_machine === 1 && cb_r()) {
+			evt.state_machine = -evt.state_machine;
+		}
+	} else if (evt.type === evt.BLOCK_WRITE) {
+		if (evt.state_machine === 2 && cb_w()) {
+			evt.state_machine = -evt.state_machine;
+		}
+	} else if (evt.type === evt.TIMER) {
+		if (evt.state_machine === -1) {
+			b = alloc(2048);
+			var len = to_binary("Hello world...",b,0,2048,0);
+			while (len < 1500) {
+				 len += to_binary("YO world...",b,len,2048,0);
+			}
+			evt.state_machine = 2;
+			write_block("hello.txt", b, 0, len, 0);
+		} else if (evt.state_machine === -2) {
+			exit(0);
+		}
+	} else if (evt.type === evt.MOUSE) {
+	} else if (evt.type === evt.KEYBOARD) {
+	} else if (evt.type === evt.AUDIO) {
+	} else if (evt.type === evt.SERIAL) {
+	} else if (evt.type === evt.NETWORK) {
+	} else {
+		exit(-1);
 	}
-	if (remains > 0) {
-		write_block(url, buffer, offset+512, remains, position+1, cb_w);
-		return;
+}
+
+function cb_w()
+{
+	if (evt.err) {
+		println("Error");
+		return -1;
+	}
+	if (evt.remains > 0) {
+		write_block(evt.url, evt.buffer, 
+			evt.offset+512, evt.remains, evt.position+1);
+		return 0;
 	}
 	println("write success.");
-	free(buffer);
+	free(evt.buffer);
+	evt.buffer = null;
+	return 1;
 }
 
-function cb(url, err, bytesRead, buffer, offset, position)
+function cb_r()
 {
-	if (err) {
+	var offset = evt.offset;
+	if (evt.err) {
 		println("Error");
-		return;
+		return -1;
 	}
-	var off = offset - offset % 512;
-	var br = bytesRead + off - offset;
+	var off = evt.offset - evt.offset % 512;
+	var br = evt.read + off - evt.offset;
 
-	if (bytesRead === 512) {
+	if (evt.read === 512) {
 		var n = 0;
 		while (n < 5) {
-			var c = buffer[offset + 511 - n];
+			var c = evt.buffer[evt.offset + 511 - n];
 			if (c < 0x80) {
 				break;
 			}
@@ -88,17 +113,19 @@ function cb(url, err, bytesRead, buffer, offset, position)
 			}
 			n = n + 1;
 		}
-		print(to_string(br-n,buffer,off));
+		print(to_string(br-n,evt.buffer,off));
 		offset = off + n;
 		while (offset !== off) {
-			buffer[off] = buffer[off + 512 - n];
+			evt.buffer[off] = evt.buffer[off + 512 - n];
 			off = off + 1;
 		}
-		read_block(url, buffer, offset, position+1, cb);
-		return;
+		read_block(evt.url, evt.buffer, offset, evt.position+1);
+		return 0;
 	}
 	
-	println(to_string(br,buffer,off));
-	free(buffer);
+	println(to_string(br,evt.buffer,off));
+	free(evt.buffer);
+	evt.buffer = null;
+	return 1;
 }
 

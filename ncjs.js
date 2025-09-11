@@ -6,45 +6,126 @@
 
 var fs;
 
-if (typeof startup != 'undefined') {
-	import('fs').then((m) => {fs = m; startup();});
+if (typeof entry != 'undefined') {
+	import('fs').then((m) => {fs = m; entry();});
 } else {
 	fs = require('fs');
 }
 
-function alloc(n) 
+global.include = function(a) {
+	include1(a,0);
+}
+
+global.include1 = function(a,i)
+{
+	if (i < a.length) {
+        	import(a[i][1]).then((m) => {global[a[i][0]] = m;include1(a,i+1);});
+	} else {
+		if (typeof setup != 'undefined') {
+			setup();
+			init_event();
+		}
+	}
+}
+
+class event_class {
+	type;
+	state_machine;
+	err;
+	url;
+	remains;
+	read;
+	buffer;
+	offset;
+	position;
+	count;
+	timeout;
+	timer;
+	START = 0;
+	BLOCK_READ = 1;
+	BLOCK_WRITE = 2;
+	TIMER = 3;
+	KEYBOARD = 4;
+	MOUSE = 5;
+	SERIAL = 6;
+	AUDIO = 7;
+	NETWORK = 8;
+	END = -1;
+}
+
+global.alloc = function(n) 
 {
 	return new Uint8Array(n);
 }
 
-function free(buffer)
+global.free = function(buffer)
 {
 	
 }
 
-function exit(n)
+global.exit = function(n)
 {
 	process.exit(n);
 }
 
-function div(a,b)
+global.evt = 0;
+
+function tmr_cb()
+{
+	evt.type = 3;
+	evt.timer = evt.timer + 1;
+
+	loop();
+	evt.type = -1;
+	setTimeout(tmr_cb, 10);
+}
+
+function call_loop()
+{
+	loop();
+	evt.type = -1;
+}
+
+function init_event()
+{
+	evt = new event_class();
+	evt.type = 0;
+	evt.timer = 0;
+	evt.state_machine = 0;
+	loop();
+	evt.type = -1;
+	evt.timeout = setTimeout(tmr_cb, 10);
+}
+
+global.div = function(a,b)
 {
 	return Math.floor(a / b);
 }
 
-function read_block(url,buffer,offset,position,callback)
+global.read_block = function(url,buffer,offset,position,callback)
 {
 	var fd = fs.openSync(url, 'r', 0x1B6); 
 	fs.read(fd, buffer,
 		 {offset:offset,length:512,position:position*512},
 		function (err, bytesRead, buffer) {
 			fs.close(fd);
-			callback(url, err, bytesRead, 
-				buffer, offset, position);
+			evt.type = evt.BLOCK_READ;
+			evt.url = url;
+			evt.err = err;
+			evt.read = bytesRead;
+			evt.buffer = buffer;
+			evt.offset = offset;
+			evt.position = position;
+			if (typeof callback !== 'undefined') {
+				callback(url, err, bytesRead, 
+					buffer, offset, position);
+			} else {
+				call_loop();
+			}
 		});
 }
 
-function write_block(url,buffer,offset,length,position,callback)
+global.write_block = function(url,buffer,offset,length,position,callback)
 {
 	var l = length;
 	var fd;
@@ -61,18 +142,29 @@ function write_block(url,buffer,offset,length,position,callback)
 		function (err, bytesWritten, buffer) {
 			length = length - bytesWritten;
 			fs.close(fd);
-			callback(url, err, length, 
-				buffer, offset, position);
+			evt.type = evt.BLOCK_WRITE;
+			evt.url = url;
+			evt.err = err;
+			evt.remains = length;
+			evt.buffer = buffer;
+			evt.offset = offset;
+			evt.position = position;
+			if (typeof callback !== 'undefined') {
+				callback(url, err, length, 
+					buffer, offset, position);
+			} else {
+				call_loop();
+			}
 		});
 }
 
 
-function to_string(bytes, buffer, offset)
+global.to_string = function(bytes, buffer, offset)
 {
 	return ((new TextDecoder('utf-8')).decode(buffer.slice(offset,bytes+offset)));
 }
 
-function to_binary(str, buffer, offset, length, position) 
+global.to_binary = function(str, buffer, offset, length, position) 
 {
 	var t = (new TextEncoder('utf-8')).encode(str);
 	if (t.length > position) {
@@ -86,19 +178,19 @@ function to_binary(str, buffer, offset, length, position)
 	return t.length - position;
 }
 
-function from_int(n)
+global.from_int = function(n)
 {
 	return "" + n;
 }
 
 var print_buf = "";
 
-function print(str)
+global.print = function(str)
 {
 	print_buf += str;
 }
 
-function println(str)
+global.println = function(str)
 {
 	console.log(print_buf + str);
 	print_buf = "";
@@ -109,9 +201,10 @@ function run(obj)
 	return Function("runit", `"_use strict";${obj}; return;`)();
 }
 
-if (typeof startup === 'undefined' && process !== 'undefined') {
+if (typeof entry === 'undefined' && process !== 'undefined') {
 	var read_buffer = alloc(512);
 	var data = "";
+	evt = new event_class();
 	read_block(process.argv[2], read_buffer,0,0,read_cb);
 	function read_cb(url, err, bytesRead, buffer, offset, position)
 	{
@@ -120,7 +213,7 @@ if (typeof startup === 'undefined' && process !== 'undefined') {
 			return -1;
 		}
 		data += to_string(bytesRead, buffer, offset);
-		if (bytesRead == 512) {
+		if (bytesRead === 512) {
 			read_block(url, read_buffer,0,position + 1 ,read_cb);
 			return;
 		}
